@@ -5,6 +5,8 @@ from fastapi.templating import Jinja2Templates
 import cv2
 import numpy as np
 import os
+import uuid
+import tempfile
 from ultralytics import YOLO
 
 # Path to local model weights
@@ -26,24 +28,34 @@ async def get_upload_form(request: Request):
 
 @app.post("/detect/")
 async def detect(file: UploadFile = File(...)):
-    contents = await file.read()
+    # Save the uploaded video to a temporary file
+    temp_dir = tempfile.gettempdir()
+    temp_filename = f"bee_video_{uuid.uuid4()}.mp4"
+    video_path = os.path.join(temp_dir, temp_filename)
 
-    # Save uploaded video
-    with open("temp_video.mp4", "wb") as f:
+    contents = await file.read()
+    with open(video_path, "wb") as f:
         f.write(contents)
 
-    cap = cv2.VideoCapture("temp_video.mp4")
-    bee_count = 0
+    # Run YOLO tracking on the video using ByteTrack
+    results = model.track(
+        source=video_path,
+        tracker="bytetrack.yaml",  # Uses Ultralytics built-in tracker config
+        persist=True,
+        verbose=False
+    )
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        results = model.predict(frame)
-        for r in results:
-            bee_count += sum(1 for c in r.boxes.cls if int(c) == 0)  # 0 = 'bee'
+    # Count unique bee IDs (assuming class 0 is 'bee')
+    unique_ids = set()
+    for r in results:
+        for box in r.boxes:
+            if int(box.cls[0]) == 0 and box.id is not None:
+                unique_ids.add(int(box.id[0]))
 
-    cap.release()
-    os.remove("temp_video.mp4")
+    # Clean up
+    os.remove(video_path)
 
-    return JSONResponse({"bee_count": bee_count})
+    return JSONResponse({
+        "unique_bee_count": len(unique_ids),
+        "bee_ids": list(unique_ids)
+    })
