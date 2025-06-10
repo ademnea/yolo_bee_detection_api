@@ -1,43 +1,49 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile, File, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import cv2
 import numpy as np
 import os
-import requests
 from ultralytics import YOLO
 
-# URL to your Google Drive file (converted to direct download)
-MODEL_URL = "https://drive.google.com/uc?export=download&id=1g4VMUerAHNnOeG5Su2xdt2xPFQObFMcB"
-MODEL_PATH = "yolov8m.pt"
+# Path to local model weights
+MODEL_PATH = "best.pt"
 
-# Function to download model weights
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        print("Downloading model weights...")
-        response = requests.get(MODEL_URL)
-        with open(MODEL_PATH, "wb") as f:
-            f.write(response.content)
-        print("Download complete.")
-
-# Ensure model is downloaded before loading
-download_model()
-
-# Load YOLO model
+# Load model from local file
 model = YOLO(MODEL_PATH)
 
-# FastAPI app
+# FastAPI setup
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def get_upload_form(request: Request):
+    return templates.TemplateResponse("upload.html", {"request": request})
+
 
 @app.post("/detect/")
-async def detect_objects(file: UploadFile):
-    image_bytes = await file.read()
-    image = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+async def detect(file: UploadFile = File(...)):
+    contents = await file.read()
 
-    results = model.predict(image)
-    detections = results[0].boxes.xyxy.tolist() if results else []
+    # Save uploaded video
+    with open("temp_video.mp4", "wb") as f:
+        f.write(contents)
 
-    return {"detections": detections}
+    cap = cv2.VideoCapture("temp_video.mp4")
+    bee_count = 0
 
-@app.get("/")
-async def root():
-    return {"message": "YOLO model ready"}
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        results = model.predict(frame)
+        for r in results:
+            bee_count += sum(1 for c in r.boxes.cls if int(c) == 0)  # 0 = 'bee'
+
+    cap.release()
+    os.remove("temp_video.mp4")
+
+    return JSONResponse({"bee_count": bee_count})

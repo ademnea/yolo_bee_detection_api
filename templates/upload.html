@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bee Detection</title>
+</head>
+<body>
+    <h1>Upload a video to count bees</h1>
+    <form action="/detect/" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept="video/*" required>
+        <br><br>
+        <input type="submit" value="Upload and Detect">
+    </form>
+</body>
+</html>
