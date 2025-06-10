@@ -13,3 +13,4 @@ six==1.17.0
 virtualenv==20.15.1
 zipp==1.2.0
 uvicorn
+opencv-python
