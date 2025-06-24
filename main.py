@@ -1,7 +1,6 @@
 import paramiko
 import os
 import sys
-import argparse
 
 videos = [
     "1_2024-10-30_060006.mp4", "1_2023-04-10_100001.mp4", "1_2024-10-30_120006.mp4",
@@ -9,6 +8,7 @@ videos = [
     "1_2024-10-30_180005.mp4", "1_2023-04-10_115001.mp4", "1_2024-10-31_000005.mp4",
     "1_2023-04-10_120001.mp4", "1_2024-10-31_060006.mp4"
 ]
+
 
 def ssh_download_files(hostname, username, password, remote_path, local_path):
     try:
@@ -61,21 +61,16 @@ def ssh_download_files(hostname, username, password, remote_path, local_path):
         if 'ssh' in locals():
             ssh.close()
 
-if __name__ == "__main__":
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Download specific videos from a remote server via SFTP")
-    parser.add_argument(
-        "--local-path",
-        required=True,
-        help="Local destination path for downloaded videos (e.g., ./downloads)"
-    )
-    args = parser.parse_args()
 
-    # Configuration (consider using environment variables for sensitive data)
+if __name__ == "__main__":
+    # Configuration (use environment variables for sensitive data)
     hostname = os.getenv("SSH_HOST", "196.43.168.57")
     username = os.getenv("SSH_USER", "hivemonitor")
     password = os.getenv("SSH_PASS", "Ad@mnea321")  # WARNING: Hardcoding passwords is insecure
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
+    
+    # Set local_path to the script's directory
+    local_path = os.path.dirname(os.path.abspath(__file__))
 
     # Execute download
-    ssh_download_files(hostname, username, password, remote_path, args.local_path)
+    ssh_download_files(hostname, username, password, remote_path, local_path)
