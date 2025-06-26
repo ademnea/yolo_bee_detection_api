@@ -102,7 +102,7 @@ def process_video(video_path, yolo_model, deepsort_tracker, output_path):
 
 def main():
     # Configuration
-    hostname = os.getenv("SSH_HOST", "196.43.168.57")
+    hostname = os.getenv("SSH_HOST", "")
     username = os.getenv("SSH_USER", "hivemonitor")
     password = os.getenv("SSH_PASS", "Ad@mnea321")
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
