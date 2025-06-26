@@ -6,12 +6,19 @@ import numpy as np
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 import torch
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List
+import uvicorn
+import json
 
-videos = [
-    "1_2024-10-30_145008.mp4"
-]
+app = FastAPI()
 
-def ssh_download_files(hostname, username, password, remote_path, local_path):
+# Pydantic model for request body
+class VideoList(BaseModel):
+    videos: List[str]
+
+def ssh_download_files(hostname, username, password, remote_path, local_path, videos):
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -22,7 +29,7 @@ def ssh_download_files(hostname, username, password, remote_path, local_path):
         
         if not remote_files:
             print(f"No files found in {remote_path}")
-            return
+            return 0
         
         downloaded_count = 0
         for file_name in remote_files:
@@ -36,21 +43,18 @@ def ssh_download_files(hostname, username, password, remote_path, local_path):
             else:
                 print(f"Skipping {file_name} (not in videos list)")
         
-        if downloaded_count == 0:
-            print("No matching videos found in remote directory")
-        else:
-            print(f"Successfully downloaded {downloaded_count} video(s)!")
-            
+        return downloaded_count
+    
     except Exception as e:
         print(f"An error occurred during download: {str(e)}")
-        sys.exit(1)
+        raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
     finally:
         if 'sftp' in locals():
             sftp.close()
         if 'ssh' in locals():
             ssh.close()
 
-def process_video(video_path, yolo_model, deepsort_tracker, output_path):
+def process_video(video_path, yolo_model, deepsort_tracker):
     try:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -71,7 +75,7 @@ def process_video(video_path, yolo_model, deepsort_tracker, output_path):
             # Format detections for DeepSort
             detections = []
             for box in results[0].boxes:
-                if results[0].names[int(box.cls)] == "item":  # Use "item" as class name
+                if results[0].names[int(box.cls)] == "item":
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     conf = float(box.conf)
                     detections.append(([x1, y1, x2-x1, y2-y1], conf, "item"))
@@ -91,35 +95,28 @@ def process_video(video_path, yolo_model, deepsort_tracker, output_path):
         bee_count = len(unique_bee_ids)
         print(f"Video {os.path.basename(video_path)}: Detected {bee_count} unique bees")
         
-        with open(output_path, "a") as f:
-            f.write(f"{os.path.basename(video_path)}: {bee_count} unique bees\n")
-        
         return bee_count
     
     except Exception as e:
         print(f"Error processing video {video_path}: {str(e)}")
         return 0
 
-def main():
+@app.post("/process_videos")
+async def process_videos(video_list: VideoList):
     # Configuration
     hostname = os.getenv("SSH_HOST", "196.43.168.57")
     username = os.getenv("SSH_USER", "hivemonitor")
     password = os.getenv("SSH_PASS", "Ad@mnea321")
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
-    local_path = os.path.dirname(os.path.abspath(__file__))
-    weights_path = os.path.join(local_path, "best.pt")
-    output_path = os.path.join(local_path, "bee_counts.txt")
-    
-    # Download videos
-    ssh_download_files(hostname, username, password, remote_path, local_path)
+    local_path = "./videos"  # Docker container path
+    weights_path = "./best.pt"  # Docker container path
     
     # Load YOLOv8 model
     try:
         model = YOLO(weights_path)
         print(f"Loaded YOLOv8 model from {weights_path}")
     except Exception as e:
-        print(f"Error loading YOLOv8 model: {str(e)}")
-        sys.exit(1)
+        raise HTTPException(status_code=500, detail=f"Error loading YOLOv8 model: {str(e)}")
     
     # Initialize DeepSort
     try:
@@ -127,21 +124,30 @@ def main():
             max_age=30,
             n_init=3,
             nn_budget=100,
-            embedder="mobilenet",  # Lightweight embedder
+            embedder="mobilenet",
             embedder_gpu=torch.cuda.is_available()
         )
         print("Initialized DeepSORT tracker")
     except Exception as e:
-        print(f"Error initializing DeepSORT: {str(e)}")
-        sys.exit(1)
+        raise HTTPException(status_code=500, detail=f"Error initializing DeepSORT: {str(e)}")
     
-    # Process each downloaded video
-    for video_name in videos:
+    # Download videos
+    downloaded_count = ssh_download_files(hostname, username, password, remote_path, local_path, video_list.videos)
+    if downloaded_count == 0:
+        raise HTTPException(status_code=404, detail="No matching videos found in remote directory")
+    
+    # Process videos and collect results
+    results = {}
+    for video_name in video_list.videos:
         video_path = os.path.join(local_path, video_name)
         if os.path.exists(video_path):
-            process_video(video_path, model, deepsort, output_path)
+            bee_count = process_video(video_path, model, deepsort)
+            results[video_name] = bee_count
         else:
+            results[video_name] = 0
             print(f"Video {video_name} not found in {local_path}")
+    
+    return {"results": results}
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8000)

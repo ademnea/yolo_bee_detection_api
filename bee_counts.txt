@@ -1,3 +1,7 @@
 1_2024-10-30_060006.mp4: 0 unique bees
 1_2024-10-30_120006.mp4: 0 unique bees
 1_2024-10-30_145008.mp4: 0 unique bees
+1_2024-10-30_145008.mp4: 0 unique bees
+1_2024-10-30_145008.mp4: 0 total bees
+1_2024-10-30_145008.mp4: 102 total bees
+1_2024-10-30_145008.mp4: 2 unique bees
