@@ -105,8 +105,8 @@ def process_video(video_path, yolo_model, deepsort_tracker):
 async def process_videos(video_list: VideoList):
     # Configuration
     hostname = os.getenv("SSH_HOST", "")
-    username = os.getenv("SSH_USER", "hivemonitor")
-    password = os.getenv("SSH_PASS", "Ad@mnea321")
+    username = os.getenv("SSH_USER", "")
+    password = os.getenv("SSH_PASS", "")
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
     local_path = "./videos"  # Docker container path
     weights_path = "./best.pt"  # Docker container path
