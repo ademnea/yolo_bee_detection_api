@@ -101,9 +101,9 @@ def handler(job):
 
     # Configuration
     print("Initializing credentials")
-    hostname = os.getenv("SSH_HOST", "196.43.168.57")
-    username = os.getenv("SSH_USER", "hivemonitor")
-    password = os.getenv("SSH_PASS", "Ad@mnea321")
+    hostname = os.getenv("SSH_HOST", "")
+    username = os.getenv("SSH_USER", "")
+    password = os.getenv("SSH_PASS", "")
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
     local_path = "./videos"  # Docker container path
     weights_path = "./best.pt"  # Docker container path
