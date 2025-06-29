@@ -1,3 +1,4 @@
+print("Starting imports")
 import paramiko
 import os
 import sys
@@ -8,7 +9,7 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 import torch
 import runpod
 
-
+print("Working on the ssh function")
 def ssh_download_files(hostname, username, password, remote_path, local_path, videos):
     try:
         ssh = paramiko.SSHClient()
@@ -31,8 +32,6 @@ def ssh_download_files(hostname, username, password, remote_path, local_path, vi
                 sftp.get(remote_file_path, local_file_path)
                 print(f"Downloaded {file_name} to {local_file_path}")
                 downloaded_count += 1
-            else:
-                # print(f"Skipping {file_name} (not in videos list)")
         
         return downloaded_count
     
@@ -45,6 +44,7 @@ def ssh_download_files(hostname, username, password, remote_path, local_path, vi
         if 'ssh' in locals():
             ssh.close()
 
+print("Defining process video function")
 def process_video(video_path, yolo_model, deepsort_tracker):
     try:
         cap = cv2.VideoCapture(video_path)
@@ -91,7 +91,7 @@ def process_video(video_path, yolo_model, deepsort_tracker):
     except Exception as e:
         print(f"Error processing video {video_path}: {str(e)}")
         return 0
-
+print("Defining a print handler function")
 def handler(job):
     print("Extracting videos from job")
     # Extract input from the job
