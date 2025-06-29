@@ -6,17 +6,8 @@ import numpy as np
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 import torch
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
-import uvicorn
-import json
+import runpod
 
-app = FastAPI()
-
-# Pydantic model for request body
-class VideoList(BaseModel):
-    videos: List[str]
 
 def ssh_download_files(hostname, username, password, remote_path, local_path, videos):
     try:
@@ -41,13 +32,13 @@ def ssh_download_files(hostname, username, password, remote_path, local_path, vi
                 print(f"Downloaded {file_name} to {local_file_path}")
                 downloaded_count += 1
             else:
-                print(f"Skipping {file_name} (not in videos list)")
+                # print(f"Skipping {file_name} (not in videos list)")
         
         return downloaded_count
     
     except Exception as e:
         print(f"An error occurred during download: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
+        raise Exception(f"Download error: {str(e)}")
     finally:
         if 'sftp' in locals():
             sftp.close()
@@ -101,23 +92,31 @@ def process_video(video_path, yolo_model, deepsort_tracker):
         print(f"Error processing video {video_path}: {str(e)}")
         return 0
 
-@app.post("/process_videos")
-async def process_videos(video_list: VideoList):
+def handler(job):
+    print("Extracting videos from job")
+    # Extract input from the job
+    video_list = job["input"].get("videos", [])
+    if not video_list:
+        return {"error": "No videos provided in input"}
+
     # Configuration
-    hostname = os.getenv("SSH_HOST", "")
-    username = os.getenv("SSH_USER", "")
-    password = os.getenv("SSH_PASS", "")
+    print("Initializing credentials")
+    hostname = os.getenv("SSH_HOST", "196.43.168.57")
+    username = os.getenv("SSH_USER", "hivemonitor")
+    password = os.getenv("SSH_PASS", "Ad@mnea321")
     remote_path = "/var/www/html/ademnea_website/public/hivevideo"
     local_path = "./videos"  # Docker container path
     weights_path = "./best.pt"  # Docker container path
     
     # Load YOLOv8 model
+    print("Loading weights")
     try:
         model = YOLO(weights_path)
         print(f"Loaded YOLOv8 model from {weights_path}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error loading YOLOv8 model: {str(e)}")
+        return {"error": f"Error loading YOLOv8 model: {str(e)}"}
     
+    print("Initializing deeosort")
     # Initialize DeepSort
     try:
         deepsort = DeepSort(
@@ -129,16 +128,21 @@ async def process_videos(video_list: VideoList):
         )
         print("Initialized DeepSORT tracker")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error initializing DeepSORT: {str(e)}")
+        return {"error": f"Error initializing DeepSORT: {str(e)}"}
     
+    print("Downloading videos from server")
     # Download videos
-    downloaded_count = ssh_download_files(hostname, username, password, remote_path, local_path, video_list.videos)
-    if downloaded_count == 0:
-        raise HTTPException(status_code=404, detail="No matching videos found in remote directory")
+    try:
+        downloaded_count = ssh_download_files(hostname, username, password, remote_path, local_path, video_list)
+        if downloaded_count == 0:
+            return {"error": "No matching videos found in remote directory"}
+    except Exception as e:
+        return {"error": str(e)}
     
     # Process videos and collect results
+    print("processing videos")
     results = {}
-    for video_name in video_list.videos:
+    for video_name in video_list:
         video_path = os.path.join(local_path, video_name)
         if os.path.exists(video_path):
             bee_count = process_video(video_path, model, deepsort)
@@ -146,8 +150,8 @@ async def process_videos(video_list: VideoList):
         else:
             results[video_name] = 0
             print(f"Video {video_name} not found in {local_path}")
-    
+    print("Returning results")
     return {"results": results}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    runpod.serverless.start({"handler": handler})

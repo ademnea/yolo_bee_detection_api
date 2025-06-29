@@ -1,9 +1,8 @@
-fastapi
-uvicorn
-paramiko
-opencv-python
-numpy
-ultralytics
-deep-sort-realtime
-torch
-torchvision
+paramiko 
+ultralytics 
+deep-sort-realtime 
+opencv-python-headless 
+torch 
+torchvision 
+numpy 
+runpod

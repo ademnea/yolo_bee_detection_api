@@ -7,10 +7,6 @@ from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 import torch
 
-videos = [
-    "1_2024-10-30_145008.mp4"
-]
-
 def ssh_download_files(hostname, username, password, remote_path, local_path):
     try:
         ssh = paramiko.SSHClient()
